@@ -1,0 +1,158 @@
+---
+title: "Practical Machine Learning - Prediction Assignment Writeup"
+author: "Jayant Ragde"
+date: "October 15, 2016"
+output: html_document
+---
+
+
+# Introduction
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively.  This project looks at various recorded parameters of 6 participants performing a dumbell activity in 5 ways - 1 correct and 4 incorrect.  A model will be built to predict correctness based on most relevant measured parameters.
+
+Data and information for this report has been used from the following paper.  Permission to use the data and analysis is appreciated.
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013. 
+
+
+# Data set up
+
+
+## Environment set up
+
+Disable warning messages when loading libraries.
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE)
+```
+The following libraries are used.
+
+```{r libraries}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(corrplot)
+```
+
+## Download Data
+
+Data for this project is downloaded from 
+
+Training Data:  https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+Test Data:  https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r getdata}
+trainingUrl <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testingUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if (!file.exists("./data")) {
+  dir.create("./data")
+}
+if (!file.exists("./data/pml-training.csv")) {
+  download.file(trainingUrl, destfile="./data/pml-training.csv", quiet = TRUE)
+}
+if (!file.exists("./data/pml-testing.csv")) {
+  download.file(testingUrl, destfile=",/data/pml-testing.csv", quiet = TRUE)
+}
+
+# A quick look at the CSV files shows that there are many entries which are either 
+# blank or have #DIV/0!.  Replace all these with NA when reading the file.
+# 
+
+trngData <- read.csv("./data/pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+tstData  <- read.csv("./data/pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+```
+
+## Data Cleaning 
+
+Identify and remove columns that have "NA".
+Rows 1-7 have data not pertinent to this analysis.  These will be removed.
+
+
+```{r cleandata}
+# Get list of column names with NA values
+nonNARows <- names(tstData[,colSums(is.na(tstData))==0])
+# remove first and last columns (Row number and problem_id)
+nonNARows <- nonNARows[-c(1,60)]
+
+# Now remove those columns from training and test data
+clnTrnData <- trngData[,c(nonNARows, "classe")]
+clnTstData <- tstData[,c(nonNARows, "problem_id")]
+
+# Rmove rows 1 - 7
+clnTrnData <- clnTrnData[,-c(1:7)]
+clnTstData <- clnTstData[,-c(1:7)]
+```
+
+## Partition data
+
+Partition the training data using 70% for training and 30% for validation
+
+```{r partitiondata}
+set.seed(38597)
+inTrain <- createDataPartition(clnTrnData$classe, p=0.7, list = FALSE)
+training <- clnTrnData[inTrain,]
+testing <- clnTrnData[-inTrain,]
+```
+
+
+## Random Forest Method
+
+Use Random Forest method to build a model.  
+
+```{r rfanalysis}
+# Create model
+modFitRF <- randomForest(classe ~ ., training)
+# Print model details
+print(modFitRF, digits=3)
+```
+
+Viewing the peformance of the model in the following plot it can be observed that
+error drops off dramatically to near zero.
+
+```{r plotrfmodel}
+# Plot Model
+plot(modFitRF)
+```
+
+Then use the partitioned data to validate the model.
+
+```{r validation}
+# Predict using partitioned data
+predRF <- predict(modFitRF, testing, type = "class")
+# Create confusion matrix and display
+cmRF <- confusionMatrix(predRF, testing$classe)
+cmRF
+```
+
+Calculate and display the accuracy of the prediction.
+
+```{r predaccuracy}
+# calculate and display accuracy of prediction
+cmRF$overall
+```
+
+The random forest technique removes closely correlated variables by selecting the
+appropriate split between trees.  This reduces the out of sample error values and 
+increases the accuracy.  As observed, with an accuracy of 99.46% and an out of 
+sample error of 0.54%.  Hence this model can predict the correctness of the exercise
+based on the data with a high level of accuracy.
+
+## Testing Set Prediction
+
+Using the testing data set (20 observations), the predicted values of 'classe' or the
+correctness of performing the exercise is shown below.
+
+```{r testPrediction}
+# Predict using test data
+predTestRF <- predict(modFitRF, clnTstData, type = "class")
+predTestRF
+```
+
+
+
+
+
+
